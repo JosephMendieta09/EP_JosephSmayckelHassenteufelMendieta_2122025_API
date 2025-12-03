@@ -1,8 +1,6 @@
 package com.example.ep_josephsmayckelhassenteufelmendieta_2122025_api;
 
-import android.os.Handler;
-import android.os.Looper;
-import com.example.ep_josephsmayckelhassenteufelmendieta_2122025_api.Product;
+import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.BufferedReader;
@@ -16,159 +14,168 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class ApiService {
-    private static final String BASE_URL = "https://fakestoreapi.com";
-    private final ExecutorService executorService;
-    private final Handler mainHandler;
-
-    public ApiService() {
-        executorService = Executors.newSingleThreadExecutor();
-        mainHandler = new Handler(Looper.getMainLooper());
-    }
+    private static final String BASE_URL = "https://fakestores.onrender.com/api";
+    private static final String TAG = "ApiService";
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     public interface ApiCallback<T> {
         void onSuccess(T result);
         void onError(String error);
     }
 
-    // GET - Obtener todos los productos
-    public void getAllProducts(ApiCallback<List<Product>> callback) {
-        executorService.execute(() -> {
+    public void getProducts(ApiCallback<List<Product>> callback) {
+        executor.execute(() -> {
+            HttpURLConnection conn = null;
             try {
                 URL url = new URL(BASE_URL + "/products");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/json");
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(10000);
-
-                int responseCode = conn.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    BufferedReader reader = new BufferedReader(
-                            new InputStreamReader(conn.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
-                    }
-                    reader.close();
-
-                    List<Product> products = parseProductList(response.toString());
-                    mainHandler.post(() -> callback.onSuccess(products));
-                } else {
-                    mainHandler.post(() -> callback.onError("Error: " + responseCode));
-                }
-                conn.disconnect();
-            } catch (Exception e) {
-                mainHandler.post(() -> callback.onError(e.getMessage()));
-            }
-        });
-    }
-
-    // GET - Obtener un producto por ID
-    public void getProductById(String id, ApiCallback<Product> callback) {
-        executorService.execute(() -> {
-            try {
-                URL url = new URL(BASE_URL + "/products/" + id);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(10000);
-
-                int responseCode = conn.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    BufferedReader reader = new BufferedReader(
-                            new InputStreamReader(conn.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
-                    }
-                    reader.close();
-
-                    Product product = parseProduct(response.toString());
-                    mainHandler.post(() -> callback.onSuccess(product));
-                } else {
-                    mainHandler.post(() -> callback.onError("Error: " + responseCode));
-                }
-                conn.disconnect();
-            } catch (Exception e) {
-                mainHandler.post(() -> callback.onError(e.getMessage()));
-            }
-        });
-    }
-
-    // POST - Crear un nuevo producto
-    public void createProduct(Product product, ApiCallback<Product> callback) {
-        executorService.execute(() -> {
-            try {
-                URL url = new URL(BASE_URL + "/products");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(10000);
+                conn.setConnectTimeout(50000);
+                conn.setReadTimeout(50000);
 
-                JSONObject jsonBody = new JSONObject();
-                jsonBody.put("title", product.getTitle());
-                jsonBody.put("price", product.getPrice());
-                jsonBody.put("description", product.getDescription());
-                jsonBody.put("category", product.getCategory());
-                jsonBody.put("image", product.getImage());
+                int responseCode = conn.getResponseCode();
+                Log.d(TAG, "GET Products - Response Code: " + responseCode);
+
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+
+                    Log.d(TAG, "Response: " + response.toString());
+                    List<Product> products = parseProducts(response.toString());
+                    callback.onSuccess(products);
+                } else {
+                    callback.onError("Error code: " + responseCode);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting products", e);
+                callback.onError(e.getMessage());
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
+            }
+        });
+    }
+
+    public void createProduct(Product product, String apiKey, ApiCallback<Product> callback) {
+        executor.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL(BASE_URL + "/products");
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Content-Type", "application/json");
+                if (apiKey != null && !apiKey.isEmpty()) {
+                    conn.setRequestProperty("apiKey", apiKey);
+                }
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
+
+                JSONObject jsonProduct = new JSONObject();
+                jsonProduct.put("title", product.getTitle());
+                jsonProduct.put("price", product.getPrice());
+                jsonProduct.put("category", product.getCategory());
+                if (product.getDescription() != null && !product.getDescription().isEmpty()) {
+                    jsonProduct.put("description", product.getDescription());
+                }
+                if (product.getImage() != null && !product.getImage().isEmpty()) {
+                    jsonProduct.put("image", product.getImage());
+                }
+                if (product.getAvailability() != null) {
+                    jsonProduct.put("availability", product.getAvailability());
+                }
+
+                Log.d(TAG, "Creating product: " + jsonProduct.toString());
 
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.toString().getBytes());
+                os.write(jsonProduct.toString().getBytes("UTF-8"));
                 os.flush();
                 os.close();
 
                 int responseCode = conn.getResponseCode();
+                Log.d(TAG, "POST Product - Response Code: " + responseCode);
+
                 if (responseCode == HttpURLConnection.HTTP_OK ||
                         responseCode == HttpURLConnection.HTTP_CREATED) {
                     BufferedReader reader = new BufferedReader(
                             new InputStreamReader(conn.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
+
                     while ((line = reader.readLine()) != null) {
                         response.append(line);
                     }
                     reader.close();
 
-                    Product createdProduct = parseProduct(response.toString());
-                    mainHandler.post(() -> callback.onSuccess(createdProduct));
+                    Product newProduct = parseProduct(new JSONObject(response.toString()));
+                    callback.onSuccess(newProduct);
                 } else {
-                    mainHandler.post(() -> callback.onError("Error: " + responseCode));
+                    BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(conn.getErrorStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+                    Log.e(TAG, "Error response: " + response.toString());
+                    callback.onError("Error code: " + responseCode + " - " + response.toString());
                 }
-                conn.disconnect();
             } catch (Exception e) {
-                mainHandler.post(() -> callback.onError(e.getMessage()));
+                Log.e(TAG, "Error creating product", e);
+                callback.onError(e.getMessage());
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
             }
         });
     }
 
-    // PUT - Actualizar un producto
-    public void updateProduct(String id, Product product, ApiCallback<Product> callback) {
-        executorService.execute(() -> {
+    public void updateProduct(String id, Product product, String apiKey, ApiCallback<Product> callback) {
+        executor.execute(() -> {
+            HttpURLConnection conn = null;
             try {
                 URL url = new URL(BASE_URL + "/products/" + id);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("PUT");
-                conn.setRequestProperty("Content-Type", "application/json");
                 conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Content-Type", "application/json");
+                if (apiKey != null && !apiKey.isEmpty()) {
+                    conn.setRequestProperty("apiKey", apiKey);
+                }
                 conn.setDoOutput(true);
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(10000);
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
 
-                JSONObject jsonBody = new JSONObject();
-                jsonBody.put("title", product.getTitle());
-                jsonBody.put("price", product.getPrice());
-                jsonBody.put("description", product.getDescription());
-                jsonBody.put("category", product.getCategory());
-                jsonBody.put("image", product.getImage());
+                JSONObject jsonProduct = new JSONObject();
+                jsonProduct.put("title", product.getTitle());
+                jsonProduct.put("price", product.getPrice());
+                jsonProduct.put("category", product.getCategory());
+                if (product.getDescription() != null && !product.getDescription().isEmpty()) {
+                    jsonProduct.put("description", product.getDescription());
+                }
+                if (product.getImage() != null && !product.getImage().isEmpty()) {
+                    jsonProduct.put("image", product.getImage());
+                }
+                if (product.getAvailability() != null) {
+                    jsonProduct.put("availability", product.getAvailability());
+                }
 
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.toString().getBytes());
+                os.write(jsonProduct.toString().getBytes("UTF-8"));
                 os.flush();
                 os.close();
 
@@ -178,79 +185,97 @@ public class ApiService {
                             new InputStreamReader(conn.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
+
                     while ((line = reader.readLine()) != null) {
                         response.append(line);
                     }
                     reader.close();
 
-                    Product updatedProduct = parseProduct(response.toString());
-                    mainHandler.post(() -> callback.onSuccess(updatedProduct));
+                    Product updatedProduct = parseProduct(new JSONObject(response.toString()));
+                    callback.onSuccess(updatedProduct);
                 } else {
-                    mainHandler.post(() -> callback.onError("Error: " + responseCode));
+                    callback.onError("Error code: " + responseCode);
                 }
-                conn.disconnect();
             } catch (Exception e) {
-                mainHandler.post(() -> callback.onError(e.getMessage()));
+                Log.e(TAG, "Error updating product", e);
+                callback.onError(e.getMessage());
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
             }
         });
     }
 
-    // DELETE - Eliminar un producto
-    public void deleteProduct(String id, ApiCallback<Boolean> callback) {
-        executorService.execute(() -> {
+    public void deleteProduct(String id, String apiKey, ApiCallback<Void> callback) {
+        executor.execute(() -> {
+            HttpURLConnection conn = null;
             try {
                 URL url = new URL(BASE_URL + "/products/" + id);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("DELETE");
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(10000);
+                conn.setRequestProperty("Accept", "application/json");
+                if (apiKey != null && !apiKey.isEmpty()) {
+                    conn.setRequestProperty("apiKey", apiKey);
+                }
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
 
                 int responseCode = conn.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    mainHandler.post(() -> callback.onSuccess(true));
+                if (responseCode == HttpURLConnection.HTTP_OK ||
+                        responseCode == HttpURLConnection.HTTP_NO_CONTENT) {
+                    callback.onSuccess(null);
                 } else {
-                    mainHandler.post(() -> callback.onError("Error: " + responseCode));
+                    callback.onError("Error code: " + responseCode);
                 }
-                conn.disconnect();
             } catch (Exception e) {
-                mainHandler.post(() -> callback.onError(e.getMessage()));
+                Log.e(TAG, "Error deleting product", e);
+                callback.onError(e.getMessage());
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
             }
         });
     }
 
-    // Helper: Parsear lista de productos
-    private List<Product> parseProductList(String jsonString) throws Exception {
+    private List<Product> parseProducts(String json) throws Exception {
         List<Product> products = new ArrayList<>();
-        JSONArray jsonArray = new JSONArray(jsonString);
+        JSONArray jsonArray = new JSONArray(json);
 
         for (int i = 0; i < jsonArray.length(); i++) {
             JSONObject jsonObject = jsonArray.getJSONObject(i);
-            Product product = new Product();
-            product.setId(String.valueOf(jsonObject.getInt("id")));
-            product.setTitle(jsonObject.getString("title"));
-            product.setPrice(jsonObject.getDouble("price"));
-            product.setDescription(jsonObject.getString("description"));
-            product.setCategory(jsonObject.getString("category"));
-            product.setImage(jsonObject.getString("image"));
-            products.add(product);
+            products.add(parseProduct(jsonObject));
         }
+
         return products;
     }
 
-    // Helper: Parsear un producto
-    private Product parseProduct(String jsonString) throws Exception {
-        JSONObject jsonObject = new JSONObject(jsonString);
+    private Product parseProduct(JSONObject json) throws Exception {
         Product product = new Product();
-        product.setId(String.valueOf(jsonObject.getInt("id")));
-        product.setTitle(jsonObject.getString("title"));
-        product.setPrice(jsonObject.getDouble("price"));
-        product.setDescription(jsonObject.getString("description"));
-        product.setCategory(jsonObject.getString("category"));
-        product.setImage(jsonObject.getString("image"));
-        return product;
-    }
 
-    public void shutdown() {
-        executorService.shutdown();
+        if (json.has("id")) {
+            product.setId(json.getString("id"));
+        }
+        if (json.has("title")) {
+            product.setTitle(json.getString("title"));
+        }
+        if (json.has("price")) {
+            product.setPrice(json.getDouble("price"));
+        }
+        if (json.has("description")) {
+            product.setDescription(json.getString("description"));
+        }
+        if (json.has("category")) {
+            product.setCategory(json.getString("category"));
+        }
+        if (json.has("image")) {
+            product.setImage(json.getString("image"));
+        }
+        if (json.has("availability")) {
+            product.setAvailability(json.getString("availability"));
+        }
+
+        return product;
     }
 }

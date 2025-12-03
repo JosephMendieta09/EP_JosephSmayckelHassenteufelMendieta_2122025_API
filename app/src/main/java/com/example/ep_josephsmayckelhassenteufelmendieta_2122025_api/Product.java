@@ -1,39 +1,42 @@
 package com.example.ep_josephsmayckelhassenteufelmendieta_2122025_api;
 
-public class Product {
-    private String id;
+import java.io.Serializable;
+
+public class Product implements Serializable {
+    private String id;  // Cambiado a String porque la API usa IDs como "5LyQpt"
     private String title;
     private double price;
     private String description;
     private String category;
     private String image;
+    private String availability; // "InStock" o "OutOfStock"
 
-    public Product() {}
-
-    public Product(String id, String title, double price, String description,
-                   String category, String image) {
-        this.id = id;
-        this.title = title;
-        this.price = price;
-        this.description = description;
-        this.category = category;
-        this.image = image;
+    // Constructor vacío
+    public Product() {
+        this.availability = "InStock";
     }
 
-    // Getters
+    // Getters y Setters
     public String getId() { return id; }
-    public String getTitle() { return title; }
-    public double getPrice() { return price; }
-    public String getDescription() { return description; }
-    public String getCategory() { return category; }
-    public String getImage() { return image; }
-
-    // Setters
     public void setId(String id) { this.id = id; }
+
+    public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
+
+    public double getPrice() { return price; }
     public void setPrice(double price) { this.price = price; }
+
+    public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
+
+    public String getImage() { return image; }
     public void setImage(String image) { this.image = image; }
+
+    public String getAvailability() { return availability; }
+    public void setAvailability(String availability) { this.availability = availability; }
 }
+
 

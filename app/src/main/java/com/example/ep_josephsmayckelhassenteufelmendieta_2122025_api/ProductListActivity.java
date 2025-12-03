@@ -2,100 +2,161 @@ package com.example.ep_josephsmayckelhassenteufelmendieta_2122025_api;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import com.example.ep_josephsmayckelhassenteufelmendieta_2122025_api.R;
-import com.example.ep_josephsmayckelhassenteufelmendieta_2122025_api.ProductAdapter;
-import com.example.ep_josephsmayckelhassenteufelmendieta_2122025_api.ApiService;
-import com.example.ep_josephsmayckelhassenteufelmendieta_2122025_api.Product;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ProductListActivity extends AppCompatActivity {
+public class ProductListActivity extends AppCompatActivity implements ProductAdapter.OnProductClickListener {
+
+    private static final String TAG = "ProductListActivity";
     private RecyclerView recyclerView;
     private ProductAdapter adapter;
     private ProgressBar progressBar;
-    private TextView errorText;
-    private ApiService apiService;
     private List<Product> productList;
+    private ApiService apiService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_product_list);
 
+        // Configurar Toolbar
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle(R.string.product_list_title);
+            getSupportActionBar().setTitle("Productos");
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
 
+        // Inicializar vistas
         recyclerView = findViewById(R.id.recyclerView);
         progressBar = findViewById(R.id.progressBar);
-        errorText = findViewById(R.id.errorText);
+        FloatingActionButton fabAdd = findViewById(R.id.fabAdd);
 
+        // Configurar RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         productList = new ArrayList<>();
-        adapter = new ProductAdapter(productList, this::onProductClick);
+        adapter = new ProductAdapter(productList, this);
         recyclerView.setAdapter(adapter);
 
         apiService = new ApiService();
+
+        fabAdd.setOnClickListener(v -> {
+            Intent intent = new Intent(ProductListActivity.this, FormProductActivity.class);
+            startActivity(intent);
+        });
+
+        // Cargar productos
         loadProducts();
     }
 
     private void loadProducts() {
         progressBar.setVisibility(View.VISIBLE);
-        errorText.setVisibility(View.GONE);
         recyclerView.setVisibility(View.GONE);
 
-        apiService.getAllProducts(new ApiService.ApiCallback<List<Product>>() {
+        Log.d(TAG, "Loading products...");
+
+        apiService.getProducts(new ApiService.ApiCallback<List<Product>>() {
             @Override
-            public void onSuccess(List<Product> result) {
-                progressBar.setVisibility(View.GONE);
-                recyclerView.setVisibility(View.VISIBLE);
-                productList.clear();
-                productList.addAll(result);
-                adapter.notifyDataSetChanged();
+            public void onSuccess(List<Product> products) {
+                runOnUiThread(() -> {
+                    Log.d(TAG, "Products loaded: " + products.size());
+                    progressBar.setVisibility(View.GONE);
+                    recyclerView.setVisibility(View.VISIBLE);
+                    productList.clear();
+                    productList.addAll(products);
+                    adapter.notifyDataSetChanged();
+
+                    if (products.isEmpty()) {
+                        Toast.makeText(ProductListActivity.this,
+                                "No hay productos disponibles", Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
 
             @Override
             public void onError(String error) {
-                progressBar.setVisibility(View.GONE);
-                errorText.setVisibility(View.VISIBLE);
-                errorText.setText("Error: " + error);
-                Toast.makeText(ProductListActivity.this,
-                        "Error al cargar productos", Toast.LENGTH_SHORT).show();
+                runOnUiThread(() -> {
+                    Log.e(TAG, "Error loading products: " + error);
+                    progressBar.setVisibility(View.GONE);
+                    recyclerView.setVisibility(View.VISIBLE);
+                    Toast.makeText(ProductListActivity.this,
+                            "Error al cargar productos: " + error, Toast.LENGTH_LONG).show();
+                });
             }
         });
     }
 
-    private void onProductClick(Product product) {
+    @Override
+    public void onProductClick(Product product) {
         Intent intent = new Intent(this, ProductDetailActivity.class);
-        intent.putExtra("PRODUCT_ID", product.getId());
+        intent.putExtra("product", product);
         startActivity(intent);
     }
 
     @Override
-    public boolean onSupportNavigateUp() {
-        onBackPressed();
-        return true;
+    public void onEditClick(Product product) {
+        Intent intent = new Intent(this, FormProductActivity.class);
+        intent.putExtra("product", product);
+        intent.putExtra("mode", "edit");
+        startActivity(intent);
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (apiService != null) {
-            apiService.shutdown();
-        }
+    public void onDeleteClick(Product product) {
+        new AlertDialog.Builder(this)
+                .setTitle("Confirmar eliminación")
+                .setMessage("¿Está seguro de eliminar este producto?")
+                .setPositiveButton("Eliminar", (dialog, which) -> deleteProduct(product))
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void deleteProduct(Product product) {
+        progressBar.setVisibility(View.VISIBLE);
+
+        // Nota: La API requiere un apiKey para DELETE
+        // Por ahora usamos null, pero deberías obtener un apiKey de https://fakestores.vercel.app
+        apiService.deleteProduct(product.getId(), null, new ApiService.ApiCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(ProductListActivity.this,
+                            "Producto eliminado", Toast.LENGTH_SHORT).show();
+                    loadProducts();
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(ProductListActivity.this,
+                            "Error al eliminar: " + error, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         loadProducts();
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        finish();
+        return true;
     }
 }
